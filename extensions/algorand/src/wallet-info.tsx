@@ -1,4 +1,4 @@
-import { ActionPanel, Action, Detail, showToast, Toast, Icon, confirmAlert, Alert } from "@raycast/api";
+import { ActionPanel, Action, Detail, showToast, Toast, Icon, confirmAlert, Alert, LaunchType } from "@raycast/api";
 import { useState, useEffect } from "react";
 import { WalletService, WalletData } from "./services/wallet-service";
 import SendAlgo from "./send-algo";
@@ -274,10 +274,7 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
               <Action.Push
                 title="Send Algo"
                 target={
-                  <SendAlgo
-                    launchType={{ type: "userInitiated" }}
-                    arguments={{ toAddress: "", amount: "", note: "" }}
-                  />
+                  <SendAlgo launchType={LaunchType.UserInitiated} arguments={{ toAddress: "", amount: "", note: "" }} />
                 }
                 icon={Icon.ArrowRight}
                 shortcut={{ modifiers: ["cmd"], key: "s" }}
@@ -298,7 +295,7 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
                 title="Transfer Asset"
                 target={
                   <TransferAsset
-                    launchType={{ type: "userInitiated" }}
+                    launchType={LaunchType.UserInitiated}
                     arguments={{ toAddress: "", assetId: "", amount: "" }}
                   />
                 }
@@ -313,7 +310,7 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
               />
               <Action.Push
                 title="Asset Info"
-                target={<AssetInfo launchType={{ type: "userInitiated" }} arguments={{ assetId: "" }} />}
+                target={<AssetInfo launchType={LaunchType.UserInitiated} arguments={{ assetId: "" }} />}
                 icon={Icon.Info}
                 shortcut={{ modifiers: ["cmd"], key: "i" }}
               />
@@ -326,7 +323,7 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
                     key={asset.id}
                     title={`${asset.name} (${asset.formattedAmount} ${asset.unitName})`}
                     target={
-                      <AssetInfo launchType={{ type: "userInitiated" }} arguments={{ assetId: asset.id.toString() }} />
+                      <AssetInfo launchType={LaunchType.UserInitiated} arguments={{ assetId: asset.id.toString() }} />
                     }
                     icon={Icon.Coins}
                   />

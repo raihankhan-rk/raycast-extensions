@@ -366,7 +366,8 @@ export class WalletService {
     return { txId };
   }
 
-  async fundTestnet(address: string): Promise<{ amount: number }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async fundTestnet(address: string): Promise<any> {
     const faucetUrl = `https://bank.testnet.algorand.network/api/v2/accounts/${address}`;
     const response = await fetch(faucetUrl, { method: "POST" });
 
