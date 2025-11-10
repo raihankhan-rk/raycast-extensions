@@ -12,8 +12,10 @@ import TransferAsset from "./transfer-asset";
 export default function WalletInfo() {
   const [isLoading, setIsLoading] = useState(true);
   const [walletData, setWalletData] = useState<WalletData | null>(null);
-  const [accountInfo, setAccountInfo] = useState<Record<string, unknown> | null>(null);
-  const [detailedAssets, setDetailedAssets] = useState<Record<string, unknown>[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [accountInfo, setAccountInfo] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [detailedAssets, setDetailedAssets] = useState<any[]>([]);
   const walletService = WalletService.getInstance();
 
   useEffect(() => {
@@ -168,17 +170,20 @@ export default function WalletInfo() {
       return "No assets found";
     }
 
-    return detailedAssets
-      .map((asset: Record<string, unknown>) => {
-        const frozenStatus = asset.isFrozen ? " (FROZEN)" : "";
-        const url = asset.url ? ` | URL: ${asset.url}` : "";
-        return `🪙 ${asset.name} (${asset.unitName})
+    return (
+      detailedAssets
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((asset: any) => {
+          const frozenStatus = asset.isFrozen ? " (FROZEN)" : "";
+          const url = asset.url ? ` | URL: ${asset.url}` : "";
+          return `🪙 ${asset.name} (${asset.unitName})
    ID: ${asset.id}
    Balance: ${asset.formattedAmount} ${asset.unitName}${frozenStatus}
    Total Supply: ${(asset.total / Math.pow(10, asset.decimals)).toLocaleString()}
    Creator: ${asset.creator}${url}`;
-      })
-      .join("\n\n");
+        })
+        .join("\n\n")
+    );
   };
 
   const markdown = `# 🔐 Your Algorand Wallet
@@ -268,7 +273,12 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
             <ActionPanel.Section title="Quick Actions">
               <Action.Push
                 title="Send Algo"
-                target={<SendAlgo arguments={{ toAddress: "", amount: "", note: "" }} />}
+                target={
+                  <SendAlgo
+                    launchType={{ type: "userInitiated" }}
+                    arguments={{ toAddress: "", amount: "", note: "" }}
+                  />
+                }
                 icon={Icon.ArrowRight}
                 shortcut={{ modifiers: ["cmd"], key: "s" }}
               />
@@ -286,8 +296,13 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
               />
               <Action.Push
                 title="Transfer Asset"
-                target={<TransferAsset arguments={{ toAddress: "", assetId: "", amount: "" }} />}
-                icon={Icon.ArrowUpRight}
+                target={
+                  <TransferAsset
+                    launchType={{ type: "userInitiated" }}
+                    arguments={{ toAddress: "", assetId: "", amount: "" }}
+                  />
+                }
+                icon={Icon.ArrowRight}
                 shortcut={{ modifiers: ["cmd"], key: "t" }}
               />
               <Action.Push
@@ -298,7 +313,7 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
               />
               <Action.Push
                 title="Asset Info"
-                target={<AssetInfo arguments={{ assetId: "" }} />}
+                target={<AssetInfo launchType={{ type: "userInitiated" }} arguments={{ assetId: "" }} />}
                 icon={Icon.Info}
                 shortcut={{ modifiers: ["cmd"], key: "i" }}
               />
@@ -310,7 +325,9 @@ Your wallet is encrypted and stored securely on this device. The mnemonic phrase
                   <Action.Push
                     key={asset.id}
                     title={`${asset.name} (${asset.formattedAmount} ${asset.unitName})`}
-                    target={<AssetInfo arguments={{ assetId: asset.id.toString() }} />}
+                    target={
+                      <AssetInfo launchType={{ type: "userInitiated" }} arguments={{ assetId: asset.id.toString() }} />
+                    }
                     icon={Icon.Coins}
                   />
                 ))}

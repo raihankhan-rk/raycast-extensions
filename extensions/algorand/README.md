@@ -2,7 +2,7 @@
 
 A powerful Raycast extension that brings the full capabilities of the Algorand blockchain directly to your macOS toolbar. Manage wallets, send transactions, swap assets, and more - all without leaving your workflow.
 
-![Algorand Raycast Extension](https://github.com/hatif03/algorand-mcp/blob/main/raycast/algorand/assets/screenshot.png)
+![Algorand Raycast Extension](https://github.com/hatif03/algorand-mcp/blob/main/raycast/algorand/images/screenshot.png)
 
 ## ✨ Features
 

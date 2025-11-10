@@ -134,7 +134,8 @@ export class WalletService {
     return wallet;
   }
 
-  async getAccountInfo(address: string): Promise<Record<string, unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getAccountInfo(address: string): Promise<any> {
     const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", "");
     try {
       return await algodClient.accountInformation(address).do();
@@ -143,7 +144,8 @@ export class WalletService {
     }
   }
 
-  async getDetailedAccountAssets(address: string): Promise<Record<string, unknown>[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getDetailedAccountAssets(address: string): Promise<any[]> {
     const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", "");
 
     try {
@@ -155,7 +157,8 @@ export class WalletService {
 
       // Fetch detailed information for each asset
       const detailedAssets = await Promise.all(
-        accountInfo.assets.map(async (asset: Record<string, unknown>) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        accountInfo.assets.map(async (asset: any) => {
           try {
             const assetInfo = await algodClient.getAssetByID(asset["asset-id"]).do();
             return {
@@ -374,7 +377,8 @@ export class WalletService {
     return await response.json();
   }
 
-  async getTransactionHistory(address: string, limit: number = 50): Promise<Record<string, unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getTransactionHistory(address: string, limit: number = 50): Promise<any> {
     const indexerClient = new algosdk.Indexer("", "https://testnet-idx.algonode.cloud", "");
 
     try {
@@ -386,7 +390,8 @@ export class WalletService {
     }
   }
 
-  async getAssetInfo(assetId: number): Promise<Record<string, unknown>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getAssetInfo(assetId: number): Promise<any> {
     const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", "");
 
     try {
@@ -425,7 +430,8 @@ export class WalletService {
     return Buffer.from(account.sk.slice(32)).toString("hex");
   }
 
-  formatTransactionType(txn: Record<string, unknown>): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formatTransactionType(txn: any): string {
     if (txn["tx-type"] === "pay") {
       return "Payment";
     } else if (txn["tx-type"] === "axfer") {
@@ -461,7 +467,8 @@ export class WalletService {
     amount: string,
     walletAddress: string,
     slippage: string = "0.005", // 0.5% default slippage
-  ): Promise<Record<string, unknown>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<any> {
     const peraSwap = this.getPeraSwapClient();
 
     try {
@@ -601,7 +608,8 @@ export class WalletService {
     }
   }
 
-  async searchSwapAssets(query: string): Promise<Record<string, unknown>[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async searchSwapAssets(query: string): Promise<any[]> {
     const peraSwap = this.getPeraSwapClient();
 
     try {
@@ -612,7 +620,8 @@ export class WalletService {
     }
   }
 
-  async getAvailableSwapAssets(assetInId: number): Promise<Record<string, unknown>[]> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getAvailableSwapAssets(assetInId: number): Promise<any[]> {
     const peraSwap = this.getPeraSwapClient();
 
     try {
@@ -624,7 +633,8 @@ export class WalletService {
     }
   }
 
-  async getSwapAsset(assetId: number): Promise<Record<string, unknown> | null> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getSwapAsset(assetId: number): Promise<any | null> {
     const peraSwap = this.getPeraSwapClient();
 
     try {

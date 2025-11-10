@@ -41,7 +41,8 @@ export default function TransactionHistory() {
       });
 
       const historyResponse = await walletService.getTransactionHistory(wallet.address);
-      const processedTransactions = await processTransactions(historyResponse.transactions || []);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const processedTransactions = await processTransactions(historyResponse.transactions || ([] as any[]));
 
       setTransactions(processedTransactions);
 
@@ -62,7 +63,8 @@ export default function TransactionHistory() {
     }
   };
 
-  const processTransactions = async (txns: Record<string, unknown>[]): Promise<Transaction[]> => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const processTransactions = async (txns: any[]): Promise<Transaction[]> => {
     const processed: Transaction[] = [];
 
     for (const txn of txns) {
