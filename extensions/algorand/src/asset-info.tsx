@@ -2,10 +2,6 @@ import { ActionPanel, Action, Detail, showToast, Toast, Icon, Form, useNavigatio
 import { useState, useEffect } from "react";
 import { WalletService } from "./services/wallet-service";
 
-interface AssetInfoArguments {
-  assetId: string;
-}
-
 interface AssetInfo {
   id: number;
   params: {
@@ -26,7 +22,7 @@ interface AssetInfo {
   deleted: boolean;
 }
 
-export default function AssetInfo(props: LaunchProps<{ arguments: AssetInfoArguments }>) {
+export default function AssetInfo(props: LaunchProps<{ arguments: { assetId: string } }>) {
   const { assetId = "" } = props.arguments;
   const [isLoading, setIsLoading] = useState(false);
   const [inputAssetId, setInputAssetId] = useState(assetId);
