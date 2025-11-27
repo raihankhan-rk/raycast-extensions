@@ -115,12 +115,12 @@
     {
       "name": "swap-assets",
       "title": "Swap Assets",
-      "description": "Swap Algorand assets using Pera Swap",
+      "description": "Swap Algorand assets using Tinyman DEX",
       "mode": "view"
     }
   ],
   "dependencies": {
-    "@perawallet/swap": "^1.0.0-beta.2",
+    "@tinymanorg/tinyman-js-sdk": "^3.0.0",
     "@raycast/api": "^1.103.0",
     "@raycast/utils": "^1.17.0",
     "algosdk": "^2.7.0"

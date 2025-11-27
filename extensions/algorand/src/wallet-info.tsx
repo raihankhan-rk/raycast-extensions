@@ -229,7 +229,7 @@ This account is not yet active on the Algorand testnet. Fund it to get started!
 ---
 
 ### 🌐 External Links
-- [View on AlgoExplorer](https://testnet.algoexplorer.io/address/${walletData.address})
+- [View on AlgoExplorer](https://lora.algokit.io/testnet/address/${walletData.address})
 - [Algorand Developer Portal](https://developer.algorand.org/)
 
 ### 🛡️ Security Notice

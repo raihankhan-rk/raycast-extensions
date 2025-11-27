@@ -206,11 +206,11 @@ export default function SwapAssets() {
 - **Provider**: ${quote?.provider}
 
 ## 🌐 View Transaction
-[View on AlgoExplorer](https://testnet.algoexplorer.io/tx/${result.txId})
+[View on AlgoExplorer](https://lora.algokit.io/testnet/tx/${result.txId})
 
 ---
 
-Your swap has been successfully executed on the Algorand testnet using Pera Swap infrastructure.`;
+Your swap has been successfully executed on the Algorand testnet using Tinyman DEX.`;
 
     return (
       <Detail
@@ -221,7 +221,7 @@ Your swap has been successfully executed on the Algorand testnet using Pera Swap
             <Action.CopyToClipboard title="Copy Transaction ID" content={result.txId} icon={Icon.CopyClipboard} />
             <Action.OpenInBrowser
               title="View on Algoexplorer"
-              url={`https://testnet.algoexplorer.io/tx/${result.txId}`}
+              url={`https://lora.algokit.io/testnet/tx/${result.txId}`}
               icon={Icon.Globe}
             />
             <Action
@@ -258,8 +258,7 @@ Your swap has been successfully executed on the Algorand testnet using Pera Swap
 - **Slippage**: ${(parseFloat(quote.slippage) * 100).toFixed(2)}%
 
 ## Fees
-- **Pera Fee**: ${formatAmount(quote.pera_fee_amount, quote.asset_in.fraction_decimals)} ${quote.asset_in.unit_name}
-- **Exchange Fee**: ${formatAmount(quote.exchange_fee_amount, quote.asset_in.fraction_decimals)} ${quote.asset_in.unit_name}
+- **Tinyman Fee (0.3%)**: ${formatAmount(quote.exchange_fee_amount, quote.asset_in.fraction_decimals)} ${quote.asset_in.unit_name}
 
 ---
 
@@ -291,7 +290,7 @@ Your swap has been successfully executed on the Algorand testnet using Pera Swap
       }
     >
       <Form.Description
-        text={`Swap assets using Pera Swap on Algorand testnet\nWallet: ${walletAddress.slice(0, 8)}...${walletAddress.slice(-8)}`}
+        text={`Swap assets using Tinyman DEX on Algorand testnet\nWallet: ${walletAddress.slice(0, 8)}...${walletAddress.slice(-8)}`}
       />
 
       <Form.Separator />

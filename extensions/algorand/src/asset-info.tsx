@@ -153,7 +153,7 @@ ${assetInfo.params.metadataHash ? `- **Metadata Hash**: \`${assetInfo.params.met
             />
             <Action.OpenInBrowser
               title="View on Algoexplorer"
-              url={`https://testnet.algoexplorer.io/asset/${assetInfo.id}`}
+              url={`https://lora.algokit.io/testnet/asset/${assetInfo.id}`}
               icon={Icon.Globe}
             />
             {assetInfo.params.url && (

@@ -1,7 +1,25 @@
 import { LocalStorage, showToast, Toast } from "@raycast/api";
 import algosdk from "algosdk";
 import * as crypto from "crypto";
-import { PeraSwap } from "@perawallet/swap";
+import { Swap, SwapQuote, SwapQuoteType, V2PoolInfo, SupportedNetwork, poolUtils } from "@tinymanorg/tinyman-js-sdk";
+
+// Interface for Tinyman Analytics API asset response
+interface TinymanAsset {
+  id: number;
+  name: string;
+  unit_name: string;
+  decimals: number;
+  logo?: {
+    png?: string;
+    svg?: string;
+  };
+  usd_value?: string | null;
+  is_verified?: boolean;
+}
+
+interface TinymanAssetsResponse {
+  results: TinymanAsset[];
+}
 
 export interface WalletData {
   address: string;
@@ -457,9 +475,23 @@ export class WalletService {
     return (amount / Math.pow(10, decimals)).toFixed(decimals);
   }
 
-  // Swap-related methods using Pera Swap
-  getPeraSwapClient(): PeraSwap {
-    return new PeraSwap("testnet"); // Using testnet for development
+  // Swap-related methods using Tinyman DEX
+  private readonly TINYMAN_NETWORK: SupportedNetwork = "testnet";
+
+  // Store the latest quote and pool info for executing swaps
+  private currentSwapQuote: SwapQuote | null = null;
+  private currentPool: V2PoolInfo | null = null;
+  private currentSwapParams: {
+    fromAssetId: number;
+    toAssetId: number;
+    fromDecimals: number;
+    toDecimals: number;
+    walletAddress: string;
+    slippage: number;
+  } | null = null;
+
+  private getAlgodClient(): algosdk.Algodv2 {
+    return new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", "");
   }
 
   async getSwapQuote(
@@ -470,164 +502,316 @@ export class WalletService {
     slippage: string = "0.005", // 0.5% default slippage
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
-    const peraSwap = this.getPeraSwapClient();
-
     try {
-      const response = await peraSwap.createQuote({
-        providers: ["tinyman", "vestige-v4"],
-        swapper_address: walletAddress,
-        swap_type: "fixed-input",
-        asset_in_id: fromAssetId,
-        asset_out_id: toAssetId,
-        amount: amount,
-        slippage: slippage,
+      const algodClient = this.getAlgodClient();
+
+      // Fetch asset details for display and quote calculation
+      const assetInInfo =
+        fromAssetId === 0
+          ? { name: "Algorand", unitName: "ALGO", decimals: 6 }
+          : await this.getAssetInfo(fromAssetId).then((info) => ({
+              name: info.params.name,
+              unitName: info.params.unitName,
+              decimals: info.params.decimals,
+            }));
+
+      const assetOutInfo =
+        toAssetId === 0
+          ? { name: "Algorand", unitName: "ALGO", decimals: 6 }
+          : await this.getAssetInfo(toAssetId).then((info) => ({
+              name: info.params.name,
+              unitName: info.params.unitName,
+              decimals: info.params.decimals,
+            }));
+
+      // Fetch pool info - use the correct asset ordering (higher ID first for Tinyman)
+      const [asset1ID, asset2ID] = fromAssetId > toAssetId ? [fromAssetId, toAssetId] : [toAssetId, fromAssetId];
+
+      const pool = await poolUtils.v2.getPoolInfo({
+        client: algodClient,
+        network: this.TINYMAN_NETWORK,
+        asset1ID,
+        asset2ID,
       });
 
-      return response.results[0]; // Return the best quote
+      if (!pool || !poolUtils.isPoolReady(pool)) {
+        throw new Error("Pool not found or not ready for this asset pair");
+      }
+
+      // Use the SDK's full swap quote with the pool we fetched
+      // This ensures proper asset ordering and quote structure
+      const quote = await Swap.v2.getFixedInputSwapQuote({
+        amount: BigInt(amount),
+        assetIn: { id: fromAssetId, decimals: assetInInfo.decimals },
+        assetOut: { id: toAssetId, decimals: assetOutInfo.decimals },
+        pool: pool,
+        network: this.TINYMAN_NETWORK,
+        isSwapRouterEnabled: false,
+      });
+
+      // Store quote and params for later execution
+      this.currentSwapQuote = quote;
+      this.currentPool = pool;
+      this.currentSwapParams = {
+        fromAssetId,
+        toAssetId,
+        fromDecimals: assetInInfo.decimals,
+        toDecimals: assetOutInfo.decimals,
+        walletAddress,
+        slippage: parseFloat(slippage),
+      };
+
+      // Extract quote data based on quote type
+      let amountOut: bigint;
+      let priceImpact: number;
+
+      if (quote.type === SwapQuoteType.Direct) {
+        amountOut = quote.data.quote.assetOutAmount;
+        priceImpact = quote.data.quote.priceImpact * 100;
+      } else {
+        // Router quote
+        const routerData = quote.data;
+        const lastRoute = routerData.route[routerData.route.length - 1];
+        amountOut = BigInt(lastRoute.quote.amount_out.amount);
+        priceImpact = parseFloat(routerData.price_impact) * 100;
+      }
+
+      // Calculate slippage-adjusted output
+      const slippagePercent = parseFloat(slippage);
+      const amountOutWithSlippage = amountOut - BigInt(Math.floor(Number(amountOut) * slippagePercent));
+
+      // Calculate price
+      const amountInNum = Number(amount);
+      const amountOutNum = Number(amountOut);
+      const price = amountOutNum / amountInNum;
+
+      // Return a quote object compatible with the UI
+      return {
+        quote_id_str: `tinyman_${Date.now()}`, // Generate a unique ID
+        provider: "Tinyman V2",
+        asset_in: {
+          asset_id: fromAssetId,
+          name: assetInInfo.name,
+          unit_name: assetInInfo.unitName,
+          logo: "",
+          fraction_decimals: assetInInfo.decimals,
+          usd_value: null,
+          is_verified: true,
+          verification_tier: "verified" as const,
+        },
+        asset_out: {
+          asset_id: toAssetId,
+          name: assetOutInfo.name,
+          unit_name: assetOutInfo.unitName,
+          logo: "",
+          fraction_decimals: assetOutInfo.decimals,
+          usd_value: null,
+          is_verified: true,
+          verification_tier: "verified" as const,
+        },
+        amount_in: amount,
+        amount_out: amountOut.toString(),
+        amount_out_with_slippage: amountOutWithSlippage.toString(),
+        slippage: slippage,
+        price: price.toString(),
+        price_impact: priceImpact.toFixed(4),
+        pera_fee_amount: "0", // Tinyman has no Pera fee
+        exchange_fee_amount: (Number(amount) * 0.003).toString(), // Tinyman V2 has 0.3% fee
+      };
     } catch (error) {
+      console.error("Error getting Tinyman quote:", error);
       throw new Error(`Failed to get swap quote: ${error}`);
     }
   }
 
-  async executeSwap(quoteId: string, mnemonic: string): Promise<{ txId: string; confirmedRound: number }> {
-    const peraSwap = this.getPeraSwapClient();
+  async executeSwap(_quoteId: string, mnemonic: string): Promise<{ txId: string; confirmedRound: number }> {
     const account = algosdk.mnemonicToSecretKey(mnemonic);
-    const algodClient = new algosdk.Algodv2("", "https://testnet-api.algonode.cloud", "");
+    const algodClient = this.getAlgodClient();
 
     try {
-      // Get prepared transactions from Pera
-      const preparedTxns = await peraSwap.prepareTransactions(quoteId);
-
-      if (!preparedTxns.transaction_groups || preparedTxns.transaction_groups.length === 0) {
-        throw new Error("No transaction groups received from Pera Swap");
+      if (!this.currentSwapQuote || !this.currentSwapParams || !this.currentPool) {
+        throw new Error("No swap quote available. Please get a quote first.");
       }
 
-      console.log(`Processing ${preparedTxns.transaction_groups.length} transaction groups`);
+      const quote = this.currentSwapQuote;
+      const pool = this.currentPool;
+      const params = this.currentSwapParams;
 
-      // Process each transaction group separately and submit them individually
-      let finalTxId = "";
-      let finalConfirmedRound = 0;
-
-      for (const group of preparedTxns.transaction_groups) {
-        console.log(`Processing group: ${group.purpose}`);
-
-        if (!group.transactions || group.transactions.length === 0) {
-          console.log("No transactions in this group, skipping");
-          continue;
-        }
-
-        const txnGroup: algosdk.Transaction[] = [];
-
-        // Decode all transactions in this group
-        for (let i = 0; i < group.transactions.length; i++) {
-          const txnB64 = group.transactions[i];
-          if (!txnB64) {
-            console.log(`Skipping null transaction at index ${i}`);
-            continue;
-          }
-
-          try {
-            const txnBytes = new Uint8Array(Buffer.from(txnB64, "base64"));
-            const txn = algosdk.decodeUnsignedTransaction(txnBytes);
-            txnGroup.push(txn);
-
-            const txnFromAddress = algosdk.encodeAddress(txn.from.publicKey);
-            console.log(`Transaction ${i + 1}: from ${txnFromAddress}, type: ${txn.type}`);
-          } catch (error) {
-            console.error(`Error decoding transaction ${i}:`, error);
-          }
-        }
-
-        if (txnGroup.length === 0) {
-          console.log("No valid transactions to process in this group");
-          continue;
-        }
-
-        // DON'T assign new group IDs - Pera has already set them correctly
-        // The transactions already have the proper group IDs from Pera
-        console.log(`Keeping original group IDs for ${txnGroup.length} transactions`);
-
-        // Sign only the transactions that are from our address
-        const signedTxns: Uint8Array[] = [];
-
-        for (let i = 0; i < txnGroup.length; i++) {
-          const txn = txnGroup[i];
-          const txnFromAddress = algosdk.encodeAddress(txn.from.publicKey);
-
-          if (txnFromAddress === account.addr) {
-            // This transaction is from our address - we sign it
-            const signedTxn = txn.signTxn(account.sk);
-            signedTxns.push(signedTxn);
-            console.log(`Signed transaction ${i + 1} from our address`);
-          } else {
-            // This transaction is from another address - check if Pera provided a signed version
-            if (group.signed_transactions && group.signed_transactions[i]) {
-              const signedTxnB64 = group.signed_transactions[i];
-              const signedTxnBytes = new Uint8Array(Buffer.from(signedTxnB64, "base64"));
-              signedTxns.push(signedTxnBytes);
-              console.log(`Using pre-signed transaction ${i + 1} from ${txnFromAddress}`);
-            } else {
-              // This is likely a logic signature transaction - include it unsigned
-              const encodedTxn = algosdk.encodeUnsignedTransaction(txn);
-              signedTxns.push(encodedTxn);
-              console.log(`Including unsigned transaction ${i + 1} from ${txnFromAddress} (likely LogicSig)`);
-            }
-          }
-        }
-
-        if (signedTxns.length === 0) {
-          console.log("No transactions to submit in this group");
-          continue;
-        }
-
-        console.log(`Submitting ${signedTxns.length} transactions for group: ${group.purpose}`);
-
-        // Submit this group of transactions
-        const { txId } = await algodClient.sendRawTransaction(signedTxns).do();
-        console.log(`Group ${group.purpose} submitted with txId: ${txId}`);
-
-        // Wait for confirmation
-        const confirmedTxn = await algosdk.waitForConfirmation(algodClient, txId, 4);
-
-        finalTxId = txId;
-        finalConfirmedRound = confirmedTxn["confirmed-round"];
-
-        console.log(`Group ${group.purpose} confirmed in round: ${finalConfirmedRound}`);
+      // Extract quote details
+      if (quote.type !== SwapQuoteType.Direct) {
+        throw new Error("Only direct swaps are supported");
       }
 
-      if (!finalTxId) {
-        throw new Error("No transactions were submitted");
+      const directQuote = quote.data.quote;
+      // Convert to numbers - SDK quote may return BigInt or number
+      const assetInID = Number(directQuote.assetInID);
+      const assetInAmount = BigInt(directQuote.assetInAmount);
+      const assetOutID = Number(directQuote.assetOutID);
+      const assetOutAmount = BigInt(directQuote.assetOutAmount);
+
+      // Check if user needs to opt in to the output asset
+      if (assetOutID !== 0) {
+        const accountInfo = await algodClient.accountInformation(account.addr).do();
+        const isOptedIn = accountInfo.assets?.some(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (asset: any) => asset["asset-id"] === assetOutID,
+        );
+
+        if (!isOptedIn) {
+          console.log(`Opting in to asset ${assetOutID}...`);
+          const optInParams = await algodClient.getTransactionParams().do();
+          const optInTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+            from: account.addr,
+            to: account.addr,
+            assetIndex: assetOutID,
+            amount: 0,
+            suggestedParams: optInParams,
+          });
+          const signedOptIn = optInTxn.signTxn(account.sk);
+          const { txId: optInTxId } = await algodClient.sendRawTransaction(signedOptIn).do();
+          await algosdk.waitForConfirmation(algodClient, optInTxId, 4);
+          console.log(`Opted in to asset ${assetOutID}`);
+        }
       }
+
+      // Calculate minimum output with slippage
+      const minAmountOut = assetOutAmount - BigInt(Math.floor(Number(assetOutAmount) * params.slippage));
+
+      // Get transaction params
+      const suggestedParams = await algodClient.getTransactionParams().do();
+
+      // Pool address
+      const poolAddress = pool.account.address();
+
+      // Build swap transactions manually
+      // Transaction 1: Input asset transfer to pool
+      let inputTxn: algosdk.Transaction;
+      if (assetInID === 0) {
+        // ALGO payment
+        inputTxn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
+          from: account.addr,
+          to: poolAddress,
+          amount: assetInAmount,
+          suggestedParams,
+        });
+      } else {
+        // ASA transfer
+        inputTxn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
+          from: account.addr,
+          to: poolAddress,
+          assetIndex: assetInID,
+          amount: assetInAmount,
+          suggestedParams,
+        });
+      }
+
+      // Transaction 2: App call to validator
+      const swapAppArgs = [
+        new Uint8Array(Buffer.from("swap")),
+        new Uint8Array(Buffer.from("fixed-input")),
+        algosdk.encodeUint64(minAmountOut),
+      ];
+
+      const appCallTxn = algosdk.makeApplicationNoOpTxnFromObject({
+        from: account.addr,
+        appIndex: pool.validatorAppID,
+        appArgs: swapAppArgs,
+        accounts: [poolAddress],
+        foreignAssets: [pool.asset1ID, pool.asset2ID],
+        suggestedParams,
+      });
+
+      // Set fee for inner transactions (swap has 2 inner txns)
+      appCallTxn.fee = algosdk.ALGORAND_MIN_TX_FEE * 3;
+
+      // Assign group ID
+      const txnGroup = algosdk.assignGroupID([inputTxn, appCallTxn]);
+
+      // Sign both transactions
+      const signedInputTxn = txnGroup[0].signTxn(account.sk);
+      const signedAppCallTxn = txnGroup[1].signTxn(account.sk);
+
+      // Submit the transaction group
+      const { txId } = await algodClient.sendRawTransaction([signedInputTxn, signedAppCallTxn]).do();
+
+      // Wait for confirmation
+      const confirmedTxn = await algosdk.waitForConfirmation(algodClient, txId, 5);
+
+      // Clear stored quote after successful execution
+      this.currentSwapQuote = null;
+      this.currentPool = null;
+      this.currentSwapParams = null;
 
       return {
-        txId: finalTxId,
-        confirmedRound: finalConfirmedRound,
+        txId,
+        confirmedRound: confirmedTxn["confirmed-round"],
       };
     } catch (error) {
       console.error("Detailed swap error:", error);
+      // Clear stored quote on error
+      this.currentSwapQuote = null;
+      this.currentPool = null;
+      this.currentSwapParams = null;
       throw new Error(`Swap execution failed: ${error}`);
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async searchSwapAssets(query: string): Promise<any[]> {
-    const peraSwap = this.getPeraSwapClient();
-
     try {
-      return await peraSwap.searchAssets(query);
+      // Use Tinyman Analytics API to search for assets
+      const response = await fetch(
+        `https://testnet.analytics.tinyman.org/api/v1/assets/?search=${encodeURIComponent(query)}&limit=20`,
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch assets");
+      }
+
+      const data = (await response.json()) as TinymanAssetsResponse;
+      const assets = data.results || [];
+
+      // Map to the expected format
+      return assets.map((asset) => ({
+        asset_id: asset.id,
+        name: asset.name || `Asset ${asset.id}`,
+        unit_name: asset.unit_name || `ASA${asset.id}`,
+        logo: asset.logo?.png || asset.logo?.svg || "",
+        fraction_decimals: asset.decimals || 0,
+        usd_value: asset.usd_value || null,
+        is_verified: asset.is_verified || false,
+        verification_tier: asset.is_verified ? ("verified" as const) : ("unverified" as const),
+      }));
     } catch (error) {
       console.error("Error searching assets:", error);
       return [];
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async getAvailableSwapAssets(assetInId: number): Promise<any[]> {
-    const peraSwap = this.getPeraSwapClient();
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars
+  async getAvailableSwapAssets(_assetInId: number): Promise<any[]> {
     try {
-      const response = await peraSwap.getAvailableAssets({ asset_in_id: assetInId });
-      return response.results;
+      // Fetch popular/verified assets from Tinyman
+      const response = await fetch(`https://testnet.analytics.tinyman.org/api/v1/assets/?is_verified=true&limit=50`);
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch assets");
+      }
+
+      const data = (await response.json()) as TinymanAssetsResponse;
+      const assets = data.results || [];
+
+      // Map to the expected format
+      return assets.map((asset) => ({
+        asset_id: asset.id,
+        name: asset.name || `Asset ${asset.id}`,
+        unit_name: asset.unit_name || `ASA${asset.id}`,
+        logo: asset.logo?.png || asset.logo?.svg || "",
+        fraction_decimals: asset.decimals || 0,
+        usd_value: asset.usd_value || null,
+        is_verified: asset.is_verified || false,
+        verification_tier: asset.is_verified ? ("verified" as const) : ("unverified" as const),
+      }));
     } catch (error) {
       console.error("Error getting available assets:", error);
       return [];
@@ -636,10 +820,38 @@ export class WalletService {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async getSwapAsset(assetId: number): Promise<any | null> {
-    const peraSwap = this.getPeraSwapClient();
-
     try {
-      return await peraSwap.getAsset(assetId);
+      if (assetId === 0) {
+        return {
+          asset_id: 0,
+          name: "Algorand",
+          unit_name: "ALGO",
+          logo: "",
+          fraction_decimals: 6,
+          usd_value: null,
+          is_verified: true,
+          verification_tier: "verified" as const,
+        };
+      }
+
+      const response = await fetch(`https://testnet.analytics.tinyman.org/api/v1/assets/${assetId}/`);
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const asset = (await response.json()) as TinymanAsset;
+
+      return {
+        asset_id: asset.id,
+        name: asset.name || `Asset ${asset.id}`,
+        unit_name: asset.unit_name || `ASA${asset.id}`,
+        logo: asset.logo?.png || asset.logo?.svg || "",
+        fraction_decimals: asset.decimals || 0,
+        usd_value: asset.usd_value || null,
+        is_verified: asset.is_verified || false,
+        verification_tier: asset.is_verified ? ("verified" as const) : ("unverified" as const),
+      };
     } catch (error) {
       console.error("Error getting swap asset:", error);
       return null;

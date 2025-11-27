@@ -138,7 +138,7 @@ A powerful Raycast extension that brings the full capabilities of the Algorand b
 ## 🔗 Links
 
 - [Algorand Developer Portal](https://developer.algorand.org/)
-- [AlgoExplorer Testnet](https://testnet.algoexplorer.io/)
+- [AlgoExplorer Testnet](https://lora.algokit.io/testnet/)
 - [Pera Swap](https://app.pera.finance/)
 - [Raycast Store](https://raycast.com/store)
 

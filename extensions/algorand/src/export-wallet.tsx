@@ -160,7 +160,7 @@ Anyone with access to your mnemonic phrase or private key can control your entir
 ## 🌐 External Resources
 - [Algorand Wallet Guide](https://developer.algorand.org/docs/get-started/algokit/prerequisites/#install-a-wallet)
 - [Security Best Practices](https://developer.algorand.org/docs/get-started/basics/why_algorand/)
-- [View Address on AlgoExplorer](https://testnet.algoexplorer.io/address/${walletData.address})
+- [View Address on AlgoExplorer](https://lora.algokit.io/testnet/address/${walletData.address})
 `
 }`;
 
