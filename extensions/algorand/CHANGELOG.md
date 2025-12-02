@@ -1,4 +1,4 @@
 # algorand Changelog
 
-## [Initial Release] - 2025-12-02
+## [Initial Release] - {PR_MERGE_DATE}
 
